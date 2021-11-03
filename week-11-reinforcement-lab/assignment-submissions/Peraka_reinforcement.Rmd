@@ -1,0 +1,129 @@
+---
+title: "Peraka_reinforcement"
+name: "Ronica Peraka"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+
+# read in data and create dataframe (df1)
+df <- read_csv("week-11-reinforcement-lab/data-summary.csv")
+df1 <- select(df,main_colors,opp_colors,on_play,num_turns,won)
+
+# feature engineering (cora,corc)
+df2 <- select(df,"deck_Adeline, Resplendent Cathar":"deck_Wrenn and Seven")
+#df2 <- select(df,"corc":"cora")
+mat = data.matrix(df2)
+vec1 <- vector()
+vec3 <- vector()
+for(i in 1:nrow(mat) ){
+  x<-cor( mat[1,] , mat[i,])
+  vec1 <- c(vec1,x)
+  z<-cor( mat[47,] , mat[i,])
+  vec3 <- c(vec3,z)
+}
+
+# add new features to dataframe
+df1 <- df1 %>% mutate(cora = vec1)
+df1 <- df1 %>% mutate(corc = vec3)
+
+# make scatter plot comparing new features
+ggplot(df1,aes(x=cora,y=corc))+geom_point()
+view(df1)
+```
+
+# Clustering
+```{r}
+normalize <- function(x){
+ (x - min(x)) / (max(x) - min(x))
+}
+
+#Now we can move forward in normalizing the numeric values, create a index based on numeric columns:
+abc <- names(select_if(df1, is.numeric)) #select function to find the numeric variables 
+
+#Use lapply to normalize the numeric values 
+df1[abc] <- as_tibble(lapply(df1[abc], normalize))
+
+#Select the variables to be included in the cluster 
+clust_data_df1 = df1[, c("corc", "cora")]
+```
+
+```{r}
+#Run the clustering algo with 2 centers
+set.seed(1)
+kmeans_obj_df1 = kmeans(clust_data_df1, centers = 6, 
+                        algorithm = "Lloyd")
+```
+
+```{r}
+#Visualize the output
+df1_clusters = as.factor(kmeans_obj_df1$cluster)
+
+ggplot(df1, aes(x = corc, y = cora, shape = df1_clusters)) + 
+  geom_point(size = 6) +
+  ggtitle("corc vs cora") +
+  xlab("corc") +
+  ylab("cora") +
+  scale_shape_manual(name = "Cluster", 
+                     labels = c("Cluster 1", "Cluster 2", "Cluster 3", "Cluster 4", "Cluster 5", "Cluster 6"),
+                     values = c("1", "2", "3", "4", "5", "6")) +
+  theme_light()
+```
+
+```{r}
+
+chooseK = function(k, train_set, val_set, train_class, val_class){
+  
+  # Build knn with k neighbors considered.
+  set.seed(1)
+  class_knn = knn(train = train_set,    #<- training set cases
+                  test = val_set,       #<- test set cases
+                  cl = train_class,     #<- category for classification
+                  k = k,                #<- number of neighbors considered
+                  use.all = TRUE,
+                  prob = TRUE)       #<- control ties between class assignments
+                                        #   If true, all distances equal to the kth 
+                                        #   largest are included
+  conf_mat = table(class_knn, val_class)
+  
+  # Calculate the accuracy.
+  accu = sum(conf_mat[row(conf_mat) == col(conf_mat)]) / sum(conf_mat)                         
+  cbind(k = k, accuracy = accu)
+}
+
+# knn_different_k = sapply(df1,  #<- set k to be odd number from 1 to 21
+#                          function(x) chooseK(df1, 
+#                           train_set = train[, c("cora", "corc")],
+#                           val_set = tune[, c("cora", "corc")],
+#                           train_class = train$`cora`,
+#                           val_class = tune$`cora`))
+# 
+# #A bit more of a explanation...
+# seq(1,21, by=2)#just creates a series of numbers
+# sapply(seq(1, 21, by=2), function(x) x+1)#sapply returns a new vector using the series of numbers and some calculation that is repeated over the vector of numbers 
+# # Reformating the results to graph
+# View(knn_different_k)
+# class(knn_different_k)#matrix 
+# head(knn_different_k)
+# knn_different_k = data.frame(k = knn_different_k[1,],
+#                              accuracy = knn_different_k[2,])
+# # Plot accuracy vs. k.
+# ggplot(knn_different_k,
+#        aes(x = k, y = accuracy)) +
+#   geom_line(color = "orange", size = 1.5) +
+#   geom_point(size = 3)
+
+```
+
+I practiced clustering and kNN, and it was good to get more practice on the material. I tried to use the chooseK function to choose a k number, but I ended up looking at the graphs and visually counted clumps that could work. I learned to look at a new dataset that I didn't know. One thing I looked up is how to do clustering and how to use the chooseK function for data with non-numeric inputs. We have had experience with numbers and normalizing, but this data has characters and true/false.
